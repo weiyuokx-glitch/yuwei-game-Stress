@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>解压粉碎大师 | 消除负能量 (Cloud Sync)</title>
+    <!-- Tailwind CSS v3 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0b0c10',
+                        neonBlue: '#66fcf1',
+                        neonPurple: '#c56cf0',
+                        neonPink: '#ff007f',
+                        neonYellow: '#feca57',
+                        neonGreen: '#00ff00'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0b0c10;
+            color: #ffffff;
+            touch-action: manipulation;
+            overscroll-behavior: none;
+            overflow: hidden;
+            font-family: system-ui, -apple-system, sans-serif;
+        }
+
+        #game-bg {
+            background-image:
+                linear-gradient(rgba(102, 252, 241, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(102, 252, 241, 0.05) 1px, transparent 1px);
+            background-size: 30px 30px;
+        }
+
+        /* 方块基础类 */
+        .block {
+            position: absolute;
+            background: rgba(11, 12, 16, 0.95);
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            text-align: center;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+            transform: translate(var(--tx), var(--ty)) scale(var(--s, 1));
+            transition: transform 0.05s, opacity 0.1s, filter 0.1s;
+            will-change: transform;
+            z-index: 20;
+        }
+
+        .block:active {
+            --s: 0.85;
+            filter: brightness(1.5);
+        }
+
+        /* ====== 特效系统 ====== */
+
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            pointer-events: none;
+            animation: explode 0.5s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+            z-index: 10;
+        }
+
+        @keyframes explode {
+            0% {
+                transform: translate(var(--tx-start), var(--ty-start)) scale(1);
+                opacity: 1;
+                box-shadow: 0 0 10px currentColor;
+            }
+
+            100% {
+                transform: translate(var(--tx-end), var(--ty-end)) scale(0);
+                opacity: 0;
+                box-shadow: 0 0 20px currentColor;
+            }
+        }
+
+        .shatter-piece {
+            position: absolute;
+            background: currentColor;
+            pointer-events: none;
+            animation: gravity-fall 0.6s cubic-bezier(0.4, 0, 1, 1) forwards;
+            z-index: 10;
+        }
+
+        @keyframes gravity-fall {
+            0% {
+                transform: translate(var(--tx-start), var(--ty-start)) rotate(0deg);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translate(var(--tx-end), calc(var(--ty-start) + 300px)) rotate(var(--rot));
+                opacity: 0;
+            }
+        }
+
+        .laser-beam {
+            position: absolute;
+            background: currentColor;
+            box-shadow: 0 0 20px currentColor;
+            pointer-events: none;
+            animation: laser-flash 0.3s ease-out forwards;
+            z-index: 5;
+            border-radius: 4px;
+        }
+
+        @keyframes laser-flash {
+            0% {
+                opacity: 1;
+                transform: scale(1);
+                filter: brightness(2);
+            }
+
+            100% {
+                opacity: 0;
+                transform: scale(0.1);
+                filter: brightness(1);
+            }
+        }
+
+        .lightning-segment {
+            position: absolute;
+            background: #fff;
+            box-shadow: 0 0 15px currentColor;
+            pointer-events: none;
+            transform-origin: 0% 50%;
+            animation: lightning-zap 0.2s steps(3, end) forwards;
+            z-index: 15;
+            height: 3px;
+        }
+
+        @keyframes lightning-zap {
+
+            0%,
+            100% {
+                opacity: 0;
+            }
+
+            10%,
+            90% {
+                opacity: 1;
+                filter: brightness(1.5);
+            }
+        }
+
+        /* 屏幕震动 */
+        @keyframes shake {
+
+            0%,
+            100% {
+                transform: translate(0, 0);
+            }
+
+            25% {
+                transform: translate(-4px, 3px) rotate(-1.5deg);
+            }
+
+            50% {
+                transform: translate(4px, -3px) rotate(1.5deg);
+            }
+
+            75% {
+                transform: translate(-4px, -3px) rotate(-1.5deg);
+            }
+        }
+
+        .shake {
+            animation: shake 0.2s;
+        }
+
+        /* UI 组件 */
+        .panel {
+            background: rgba(17, 24, 39, 0.95);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .btn-main {
+            background: linear-gradient(135deg, #66fcf1, #0ea5e9);
+            color: #000;
+            box-shadow: 0 0 15px rgba(102, 252, 241, 0.4);
+            transition: all 0.2s;
+        }
+
+        .btn-main:hover {
+            transform: scale(1.02);
+            box-shadow: 0 0 25px rgba(102, 252, 241, 0.6);
+        }
+
+        .btn-main:active {
+            transform: scale(0.98);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid #4b5563;
+            color: #d1d5db;
+            transition: all 0.2s;
+        }
+
+        .btn-outline.active {
+            border-color: #66fcf1;
+            color: #66fcf1;
+            box-shadow: inset 0 0 10px rgba(102, 252, 241, 0.2);
+            background: rgba(102, 252, 241, 0.1);
+        }
+
+        .ad-banner {
+            background: repeating-linear-gradient(45deg, #111, #111 8px, #1a1a2e 8px, #1a1a2e 16px);
+            color: #666;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            border: 1px dashed #333;
+        }
+
+        .premium-hide-ad {
+            display: none !important;
+        }
+
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #111;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+
+<body class="flex flex-col h-screen w-screen absolute inset-0">
+
+    <!-- 背景层 -->
+    <div id="game-bg" class="absolute inset-0 z-0"></div>
+
+    <!-- 顶部广告位 -->
+    <div id="ad-top" class="ad-banner w-full h-12 flex-shrink-0 z-[100] relative">
+        [广告] 顶部通栏广告位
+    </div>
+
+    <!-- 游戏内 头部 HUD -->
+    <header id="game-hud"
+        class="hidden flex justify-between items-center p-4 bg-black/60 backdrop-blur-md z-40 border-b border-gray-800 relative shadow-lg">
+        <div class="flex flex-col w-24">
+            <span class="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Score</span>
+            <span id="score"
+                class="text-3xl font-black text-neonBlue drop-shadow-[0_0_8px_rgba(102,252,241,0.8)] leading-none">0</span>
+        </div>
+
+        <div id="time-container" class="hidden text-center flex-col">
+            <span class="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Time</span>
+            <span id="time-left"
+                class="text-2xl font-black text-neonPink drop-shadow-[0_0_8px_rgba(255,0,127,0.8)] leading-none">60.0</span>
+        </div>
+
+        <div class="text-right w-24 flex flex-col items-end">
+            <span class="text-gray-500 text-[10px] font-bold uppercase tracking-wider">Mode</span>
+            <span id="hud-mode" class="text-sm font-bold text-gray-300">经典</span>
+        </div>
+    </header>
+
+    <!-- 游戏主容器 -->
+    <main id="game-container" class="flex-grow relative w-full h-full overflow-hidden z-10"></main>
+
+    <!-- 底部广告位 -->
+    <div id="ad-bottom" class="ad-banner flex-col w-full h-16 flex-shrink-0 z-[100] gap-1 relative">
+        <span>[广告] 底部横幅广告</span>
+        <span class="text-[0.6rem] text-gray-500">解锁高级版永久免广告</span>
+    </div>
+
+    <!-- ================= 各种弹窗UI ================= -->
+    <div id="ui-layer" class="absolute inset-0 z-50 pointer-events-none flex items-center justify-center p-4">
+
+        <!-- 1. 主菜单 (Main Menu) -->
+        <div id="screen-main"
+            class="panel rounded-2xl p-6 w-full max-w-md flex flex-col gap-5 pointer-events-auto transition-all duration-300 transform scale-100 opacity-100 h-auto max-h-[90vh] overflow-y-auto">
+
+            <div class="text-center">
+                <h1
+                    class="text-4xl font-black italic text-transparent bg-clip-text bg-gradient-to-r from-neonBlue via-white to-neonPink drop-shadow-[0_0_10px_rgba(255,255,255,0.2)]">
+                    解压粉碎大师
+                </h1>
+                <p class="text-xs text-gray-400 mt-1 tracking-widest">STRESS SMASH MASTER</p>
+            </div>
+
+            <!-- 用户信息区 (Firebase Sync) -->
+            <div class="bg-black/40 rounded-xl p-3 border border-gray-800 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <img id="user-avatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=guest"
+                        class="w-10 h-10 rounded-full bg-gray-800">
+                    <div class="flex flex-col">
+                        <span id="user-name" class="text-sm font-bold text-gray-200">未登录游客</span>
+                        <span id="sync-status" class="text-[10px] text-gray-500 flex items-center gap-1">
+                            <span class="w-2 h-2 rounded-full bg-yellow-500 inline-block"></span> 数据仅保存在本地
+                        </span>
+                    </div>
+                </div>
+                <button id="btn-login"
+                    class="px-3 py-1.5 bg-white text-black text-xs font-bold rounded flex items-center gap-2 hover:bg-gray-200 transition-colors">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24">
+                        <path fill="currentColor"
+                            d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                        <path fill="#34A853"
+                            d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                        <path fill="#FBBC05"
+                            d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                        <path fill="#EA4335"
+                            d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                    </svg>
+                    Google 登录
+                </button>
+                <button id="btn-logout"
+                    class="hidden px-3 py-1.5 bg-gray-800 text-gray-300 text-xs font-bold rounded hover:bg-gray-700 transition-colors">
+                    退出
+                </button>
+            </div>
+
+            <!-- 模式选择 -->
+            <div>
+                <div class="text-xs text-gray-500 font-bold mb-2">选择模式 MODE</div>
+                <div class="grid grid-cols-2 gap-2" id="mode-selector">
+                    <button class="btn-outline active py-2 rounded-lg text-sm font-bold"
+                        data-mode="endless">经典无尽</button>
+                    <button
+                        class="btn-outline py-2 rounded-lg text-sm font-bold flex flex-col items-center justify-center"
+                        data-mode="time">
+                        <span>60秒发泄</span>
+                        <span class="text-[10px] font-normal opacity-70">限时高压竞速</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 词库主题选择 -->
+            <div>
+                <div class="text-xs text-gray-500 font-bold mb-2 flex justify-between">
+                    <span>选择职阶 THEME</span>
+                </div>
+                <div class="grid grid-cols-3 gap-2" id="theme-selector">
+                    <button class="btn-outline active py-2 rounded-lg text-sm font-bold"
+                        data-theme="basic">默认普罗大众</button>
+                    <button class="btn-outline py-2 rounded-lg text-sm font-bold" data-theme="student">高中/大学生</button>
+                    <button class="btn-outline py-2 rounded-lg text-sm font-bold" data-theme="worker">疯狂打工人</button>
+                    <button class="btn-outline py-2 rounded-lg text-sm font-bold" data-theme="grad">卑微研究生</button>
+                    <button class="btn-outline py-2 rounded-lg text-sm font-bold" data-theme="housewife">全职妈妈</button>
+                    <button class="btn-outline py-2 rounded-lg text-sm font-bold" data-theme="custom"
+                        id="btn-open-custom">✍️ 自定义</button>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-3 mt-1">
+                <button id="btn-start"
+                    class="btn-main w-full py-4 rounded-xl font-black text-xl tracking-widest uppercase flex items-center justify-center gap-2">
+                    <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                        <path
+                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
+                            clip-rule="evenodd" fill-rule="evenodd"></path>
+                    </svg>
+                    开始粉碎
+                </button>
+
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="btn-open-leaderboard"
+                        class="w-full py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs font-bold text-gray-300 transition-colors flex items-center justify-center gap-1">
+                        🏆 排行榜
+                    </button>
+                    <button id="btn-open-store"
+                        class="w-full py-2 bg-gradient-to-r from-neonPurple/20 to-transparent hover:from-neonPurple/40 border border-neonPurple/30 rounded-lg text-xs font-bold text-neonPurple transition-all flex items-center justify-center gap-1">
+                        💎 升级特效包
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. 游戏结束 (Game Over) -->
+        <div id="screen-gameover"
+            class="panel rounded-2xl p-6 w-full max-w-sm flex flex-col gap-4 pointer-events-auto transition-all duration-300 transform scale-95 opacity-0 hidden">
+            <h2 id="modal-title" class="text-3xl font-black mb-1 text-white text-center">GAME OVER</h2>
+            <p id="modal-desc" class="text-gray-400 text-sm text-center">底线被击穿了！</p>
+
+            <div class="bg-black/50 p-4 rounded-xl border border-gray-800 text-center my-2">
+                <div class="text-gray-400 text-xs mb-1">粉碎数量 <span id="go-mode-label" class="text-neonBlue"></span>
+                </div>
+                <div id="final-score"
+                    class="text-6xl font-black text-neonPink drop-shadow-[0_0_10px_rgba(255,0,127,0.5)]">0</div>
+                <div class="text-gray-500 text-xs mt-2">最佳记录: <span id="final-highscore" class="text-white">0</span>
+                </div>
+            </div>
+
+            <!-- 结束页插屏广告 -->
+            <div id="ad-interstitial" class="ad-banner w-full h-20 rounded-lg flex-col">
+                <span>[原生/插屏广告预留]</span>
+                <span class="text-[0.6rem] opacity-60">点击观看视频获取复活币</span>
+            </div>
+
+            <div class="flex gap-2">
+                <button id="btn-back-menu"
+                    class="flex-1 py-3 bg-gray-800 hover:bg-gray-700 rounded-xl text-sm font-bold text-white transition-colors">
+                    返回菜单
+                </button>
+                <button id="btn-restart" class="flex-[2] py-3 btn-main rounded-xl text-lg font-black tracking-widest">
+                    再来一局
+                </button>
+            </div>
+        </div>
+
+        <!-- 3. 自定义词库 (Custom Dict) -->
+        <div id="screen-custom"
+            class="panel rounded-2xl p-6 w-full max-w-md flex flex-col gap-4 pointer-events-auto transition-all duration-300 transform scale-95 opacity-0 hidden">
+            <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+                <h2 class="text-xl font-bold text-white">✍️ 创建专属词库</h2>
+                <button class="close-custom text-gray-500 hover:text-white text-xl">✕</button>
+            </div>
+
+            <p class="text-xs text-gray-400">将你生活中讨厌的人、事、物写下来，一行一个。最多支持50个词条。</p>
+
+            <textarea id="custom-text"
+                class="w-full h-48 bg-black/60 border border-gray-700 rounded-lg p-3 text-sm text-white focus:border-neonBlue focus:outline-none resize-none"
+                placeholder="例如：
+房贷
+隔壁老王
+相亲
+讨厌的甲方
+写不完的bug"></textarea>
+
+            <button id="btn-save-custom" class="btn-main w-full py-3 rounded-xl font-bold">保存并同步</button>
+        </div>
+
+        <!-- 4. 排行榜 (Leaderboard) -->
+        <div id="screen-leaderboard"
+            class="panel rounded-2xl p-6 w-full max-w-md flex flex-col gap-4 pointer-events-auto transition-all duration-300 transform scale-95 opacity-0 hidden">
+            <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+                <h2
+                    class="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-neonYellow to-yellow-500">
+                    🏆 殿堂排行榜</h2>
+                <button class="close-lb text-gray-500 hover:text-white text-xl">✕</button>
+            </div>
+
+            <div class="flex gap-2 bg-black/40 p-1 rounded-lg">
+                <button class="lb-tab flex-1 py-1 text-xs font-bold rounded-md bg-gray-700 text-white"
+                    data-target="endless">经典无尽</button>
+                <button class="lb-tab flex-1 py-1 text-xs font-bold rounded-md text-gray-400 hover:text-white"
+                    data-target="time">60秒竞速</button>
+            </div>
+
+            <div class="bg-black/40 rounded-lg p-2 min-h-[150px]">
+                <ul id="lb-list" class="flex flex-col gap-2">
+                    <!-- JS动态填充 -->
+                </ul>
+            </div>
+            <p class="text-[10px] text-gray-500 text-center">当前设备与云端最高记录合并显示</p>
+        </div>
+
+        <!-- 5. 商店/升级包 (Store) -->
+        <div id="screen-store"
+            class="panel border-neonPurple shadow-[0_0_30px_rgba(197,108,240,0.2)] rounded-2xl p-6 w-full max-w-sm flex flex-col gap-4 pointer-events-auto transition-all duration-300 transform scale-95 opacity-0 hidden">
+            <div
+                class="absolute -top-10 -right-10 w-32 h-32 bg-neonPurple/20 rounded-full blur-3xl pointer-events-none">
+            </div>
+            <button
+                class="close-store absolute top-4 right-4 text-gray-500 hover:text-white z-10 w-8 h-8 flex items-center justify-center bg-black/50 rounded-full">✕</button>
+
+            <h2 class="text-2xl font-black text-neonPurple relative z-10 mt-2">高级权限</h2>
+            <p class="text-gray-400 text-xs mb-2 relative z-10">买断制解锁，极致爽感体验，账号间同步</p>
+
+            <div class="space-y-2 relative z-10">
+                <div class="bg-black/60 p-3 rounded-xl border border-gray-800 flex items-center gap-3">
+                    <span class="text-xl">🚫</span>
+                    <div class="text-sm"><span class="font-bold text-white">绝对净化</span><br><span
+                            class="text-xs text-gray-400">永久移除所有界面广告</span></div>
+                </div>
+                <div class="bg-black/60 p-3 rounded-xl border border-gray-800 flex items-center gap-3">
+                    <span class="text-xl">⚡</span>
+                    <div class="text-sm"><span class="font-bold text-white">进阶视觉引擎</span><br><span
+                            class="text-xs text-gray-400">解锁激光切割、碎屏坠落等特效</span></div>
+                </div>
+                <div class="bg-black/60 p-3 rounded-xl border border-gray-800 flex items-center gap-3">
+                    <span class="text-xl">🎧</span>
+                    <div class="text-sm"><span class="font-bold text-white">高频声学重构</span><br><span
+                            class="text-xs text-gray-400">极其清脆的合成器解压音效</span></div>
+                </div>
+            </div>
+
+            <button id="btn-buy"
+                class="relative z-10 w-full py-4 rounded-xl font-bold text-white bg-gradient-to-r from-neonPurple to-neonPink shadow-[0_0_15px_rgba(255,0,127,0.4)] active:scale-95 transition-all mt-2">
+                模拟支付 ￥9.9
+            </button>
+        </div>
+
+    </div> <!-- UI layer end -->
+
+    <!-- ================= Firebase SDK ================= -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+
+        // MCP Generated Firebase Config for stress-smash-master-2026-v2
+        const firebaseConfig = {
+            projectId: "stress-smash-master-2026-v2",
+            appId: "1:186231810032:web:a90e6eeba030e7c4c65f35",
+            storageBucket: "stress-smash-master-2026-v2.firebasestorage.app",
+            apiKey: "AIzaSyDRxqIIn-WpjPVW_nPxMQ2LnyIvaMRu6zY",
+            authDomain: "stress-smash-master-2026-v2.firebaseapp.com",
+            messagingSenderId: "186231810032"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+
+        let currentUser = null;
+
+        // Sync local state variables
+        const State = {
+            isPlaying: false,
+            mode: 'endless',
+            theme: 'basic',
+            score: 0,
+            timeLeft: 60.0,
+            isPremium: localStorage.getItem('smash_is_premium') === 'true',
+            leaderboards: JSON.parse(localStorage.getItem('smash_leaderboards')) || { endless: [], time: [] },
+            customDict: JSON.parse(localStorage.getItem('smash_custom_dict_arr')) || []
+        };
+
+        const WordsMap = {
+            basic: ['焦虑', '压力', '失眠', '内卷', '烦恼', 'emo', '加班', '烦躁', '贫穷', '孤独', '内耗', '信用卡', '体重', '脱发现象'],
+            student: ['开卷考试', '挂科', '年级排名', '堆积如山的作业', '早八', '补课', '低绩点', '期末考', '查重', '四级没过', '留级'],
+            worker: ['钉钉打卡', '无偿加班', '不合理KPI', '周报PPT', '高昂房租', '奇葩客户', '脱发严重', '降薪裁员', '早高峰地铁', '画大饼'],
+            grad: ['组会汇报', '论文盲审', '面临延毕', '核心期刊', '实验失败', '秃头导师', '无止境修改', '查重率高', '微薄补贴', '抢不到仪器'],
+            housewife: ['辅导作业', '婆媳矛盾', '菜价上涨', '永远做不完的家务', '昂贵兴趣班', '二胎催生', '孩子叛逆期', '丧偶式育儿', '容貌焦虑'],
+            premiumAddons: ['恶臭PUA', '暴力甩锅', '极限施压', '键盘侠杠精', '职场绿茶', '道德无底线绑架', '刺客价格', '各种奇葩', '已读不回']
+        };
+
+        if (State.customDict.length > 0) {
+            document.getElementById('custom-text').value = State.customDict.join('\n');
+        }
+
+        // --- Firebase Sync Logic ---
+        async function syncDataFromCloud(user) {
+            try {
+                const userRef = doc(db, "users", user.uid);
+                const docSnap = await getDoc(userRef);
+
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+
+                    if (data.isPremium !== undefined) {
+                        State.isPremium = data.isPremium || State.isPremium;
+                        localStorage.setItem('smash_is_premium', State.isPremium);
+                    }
+                    if (data.customDict) {
+                        State.customDict = data.customDict;
+                        localStorage.setItem('smash_custom_dict_arr', JSON.stringify(data.customDict));
+                        document.getElementById('custom-text').value = State.customDict.join('\n');
+                    }
+                    if (data.highScore_endless !== undefined || data.highScore_time !== undefined) {
+                        // Merge cloud highscores into local leaderboards top position if they beat it safely
+                        if (data.highScore_endless > 0) insertLocalLeaderboard('endless', data.highScore_endless, 'Cloud Sync');
+                        if (data.highScore_time > 0) insertLocalLeaderboard('time', data.highScore_time, 'Cloud Sync');
+                    }
+                } else {
+                    // Create basic document if not exist
+                    await setDoc(userRef, {
+                        displayName: user.displayName,
+                        isPremium: State.isPremium,
+                        customDict: State.customDict,
+                        highScore_endless: getTopScore('endless'),
+                        highScore_time: getTopScore('time')
+                    });
+                }
+                updatePremiumUI();
+            } catch (e) {
+                console.error("Error syncing cloud data: ", e);
+            }
+        }
+
+        async function updateCloudPartialData(key, value) {
+            if (!currentUser) return;
+            try {
+                const userRef = doc(db, "users", currentUser.uid);
+                await updateDoc(userRef, { [key]: value });
+            } catch (e) {
+                // Ignore if doc doesnt exist
+                if (e.code === 'not-found') {
+                    setDoc(doc(db, "users", currentUser.uid), { [key]: value }, { merge: true });
+                }
+            }
+        }
+
+        // --- Auth UI Listeners ---
+        onAuthStateChanged(auth, (user) => {
+            const btnLogin = document.getElementById('btn-login');
+            const btnLogout = document.getElementById('btn-logout');
+            const userName = document.getElementById('user-name');
+            const userAvatar = document.getElementById('user-avatar');
+            const syncStatus = document.getElementById('sync-status');
+
+            if (user) {
+                currentUser = user;
+                userName.innerText = user.displayName || "玩家 " + user.uid.substring(0, 5);
+                if (user.photoURL) userAvatar.src = user.photoURL;
+
+                syncStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-green-500 inline-block drop-shadow-[0_0_5px_#0f0]"></span> 已连接云端同步`;
+
+                btnLogin.classList.add('hidden');
+                btnLogout.classList.remove('hidden');
+
+                syncDataFromCloud(user);
+            } else {
+                currentUser = null;
+                userName.innerText = "未登录游客";
+                userAvatar.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
+                syncStatus.innerHTML = `<span class="w-2 h-2 rounded-full bg-yellow-500 inline-block"></span> 数据仅保存在本地`;
+
+                btnLogin.classList.remove('hidden');
+                btnLogout.classList.add('hidden');
+            }
+        });
+
+        document.getElementById('btn-login').addEventListener('click', () => {
+            signInWithPopup(auth, provider).catch(err => alert("登录失败：" + err.message));
+        });
+        document.getElementById('btn-logout').addEventListener('click', () => {
+            signOut(auth);
+        });
+
+        // --- Game Logic Bindings to UI ---
+
+        // Expose state for legacy script to use
+        window.GameState = State;
+        window.GameWords = WordsMap;
+
+        window.insertLocalLeaderboard = function (mode, score, dateStr) {
+            const list = State.leaderboards[mode];
+            // Check if exact stat exists to avoid cloud pollution
+            if (!list.find(l => l.score === score && l.date === dateStr)) {
+                list.push({ score, date: dateStr });
+                list.sort((a, b) => b.score - a.score);
+                if (list.length > 5) list.pop();
+                localStorage.setItem('smash_leaderboards', JSON.stringify(State.leaderboards));
+            }
+        };
+
+        window.getTopScore = function (mode) {
+            return State.leaderboards[mode] && State.leaderboards[mode].length > 0 ? State.leaderboards[mode][0].score : 0;
+        };
+
+        window.reportScoreToCloud = function (mode, score) {
+            if (!currentUser) return;
+            const key = mode === 'endless' ? 'highScore_endless' : 'highScore_time';
+            const top = getTopScore(mode);
+            if (score >= top) updateCloudPartialData(key, score);
+        };
+
+        window.updateCustomDictToCloud = function (arr) {
+            State.customDict = arr;
+            localStorage.setItem('smash_custom_dict_arr', JSON.stringify(arr));
+            if (currentUser) updateCloudPartialData('customDict', arr);
+        };
+
+        window.purchasePremiumCloud = function () {
+            State.isPremium = true;
+            localStorage.setItem('smash_is_premium', 'true');
+            if (currentUser) updateCloudPartialData('isPremium', true);
+        };
+    </script>
+
+    <!-- ================= Game Render & Input Logic ================= -->
+    <script>
+        // Wait for ESM to setup globals implicitly
+        setTimeout(() => {
+            const State = window.GameState;
+            const WordsMap = window.GameWords;
+            const ThemeColors = [
+                { color: '#ff007f' }, { color: '#66fcf1' }, { color: '#c56cf0' }, { color: '#feca57' }, { color: '#00ff00' }
+            ];
+
+            let blocks = [];
+            let lastTime = 0;
+            let timeSinceLastSpawn = 0;
+            let animFrameId;
+
+            let spawnInterval = 1000;
+            let baseSpeed = 0.15;
+
+            const container = document.getElementById('game-container');
+            const scoreEl = document.getElementById('score');
+            const timeContainer = document.getElementById('time-container');
+            const timeLeftEl = document.getElementById('time-left');
+            const hudModeEl = document.getElementById('hud-mode');
+            const gameHud = document.getElementById('game-hud');
+
+            const screens = {
+                main: document.getElementById('screen-main'),
+                gameover: document.getElementById('screen-gameover'),
+                custom: document.getElementById('screen-custom'),
+                leaderboard: document.getElementById('screen-leaderboard'),
+                store: document.getElementById('screen-store')
+            };
+
+            function showScreen(name) {
+                Object.values(screens).forEach(el => {
+                    if (!el.classList.contains('hidden')) {
+                        el.classList.replace('scale-100', 'scale-95');
+                        el.classList.replace('opacity-100', 'opacity-0');
+                        setTimeout(() => el.classList.add('hidden'), 300);
+                    }
+                });
+
+                if (name) {
+                    const target = screens[name];
+                    target.classList.remove('hidden');
+                    void target.offsetWidth;
+                    target.classList.replace('scale-95', 'scale-100');
+                    target.classList.replace('opacity-0', 'opacity-100');
+                }
+            }
+
+            // Audio & Visual Effects
+            let audioCtx;
+            function playSmashEffect(effectType) {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                let dur = 0.1;
+                gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+
+                if (State.isPremium) {
+                    if (effectType === 'laser') {
+                        osc.type = 'square';
+                        osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+                        osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 0.15);
+                        dur = 0.15;
+                    } else if (effectType === 'lightning') {
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+                        osc.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.2);
+                        dur = 0.2;
+                    } else if (effectType === 'shatter') {
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+                        osc.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 0.1);
+                    } else {
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
+                        osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.1);
+                    }
+                } else {
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + dur);
+                }
+
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur);
+                osc.start();
+                osc.stop(audioCtx.currentTime + dur);
+
+                if (navigator.vibrate) navigator.vibrate(State.isPremium ? [15, 20, 15] : 30);
+
+                document.body.classList.remove('shake');
+                void document.body.offsetWidth;
+                document.body.classList.add('shake');
+            }
+
+            function spawnVisualEffect(cx, cy, colorCode, width, height) {
+                let type = 'explosion';
+                if (State.isPremium) {
+                    const types = ['explosion', 'shatter', 'laser', 'lightning'];
+                    type = types[Math.floor(Math.random() * types.length)];
+                } else {
+                    type = 'explosion' // forced for basic
+                }
+
+                playSmashEffect(type);
+
+                if (type === 'explosion') {
+                    const count = State.isPremium ? 24 : 10;
+                    const distLimit = State.isPremium ? 120 : 60;
+                    for (let i = 0; i < count; i++) {
+                        const p = document.createElement('div');
+                        p.className = 'particle';
+                        p.style.color = colorCode;
+                        p.style.backgroundColor = colorCode;
+                        const size = Math.random() * 6 + 2;
+                        p.style.width = p.style.height = size + 'px';
+                        const angle = Math.random() * Math.PI * 2;
+                        const dist = Math.random() * distLimit + 20;
+
+                        p.style.setProperty('--tx-start', `${cx - size / 2}px`);
+                        p.style.setProperty('--ty-start', `${cy - size / 2}px`);
+                        p.style.setProperty('--tx-end', `${cx + Math.cos(angle) * dist}px`);
+                        p.style.setProperty('--ty-end', `${cy + Math.sin(angle) * dist}px`);
+                        container.appendChild(p);
+                        setTimeout(() => p.remove(), 500);
+                    }
+                }
+                else if (type === 'shatter') {
+                    const count = 6;
+                    for (let i = 0; i < count; i++) {
+                        const frag = document.createElement('div');
+                        frag.className = 'shatter-piece';
+                        frag.style.color = colorCode;
+                        frag.style.width = (Math.random() * 10 + 10) + 'px';
+                        frag.style.height = (Math.random() * 10 + 10) + 'px';
+
+                        const offsetX = (Math.random() - 0.5) * 60;
+                        const startX = cx - 10 + offsetX;
+                        const endX = startX + (offsetX * 2);
+
+                        frag.style.setProperty('--tx-start', `${startX}px`);
+                        frag.style.setProperty('--ty-start', `${cy - 10}px`);
+                        frag.style.setProperty('--tx-end', `${endX}px`);
+                        frag.style.setProperty('--rot', `${Math.random() * 720 - 360}deg`);
+
+                        container.appendChild(frag);
+                        setTimeout(() => frag.remove(), 600);
+                    }
+                }
+                else if (type === 'laser') {
+                    const hBeam = document.createElement('div');
+                    hBeam.className = 'laser-beam';
+                    hBeam.style.color = colorCode;
+                    hBeam.style.width = '200vw';
+                    hBeam.style.height = '4px';
+                    hBeam.style.left = '-50vw';
+                    hBeam.style.top = `${cy - 2}px`;
+
+                    const vBeam = document.createElement('div');
+                    vBeam.className = 'laser-beam';
+                    vBeam.style.color = colorCode;
+                    vBeam.style.width = '4px';
+                    vBeam.style.height = '200vh';
+                    vBeam.style.left = `${cx - 2}px`;
+                    vBeam.style.top = '-50vh';
+
+                    container.appendChild(hBeam);
+                    container.appendChild(vBeam);
+                    setTimeout(() => { hBeam.remove(); vBeam.remove(); }, 300);
+                }
+                else if (type === 'lightning') {
+                    const numZaps = 4;
+                    for (let i = 0; i < numZaps; i++) {
+                        const zap = document.createElement('div');
+                        zap.className = 'lightning-segment';
+                        zap.style.color = colorCode;
+
+                        const angle = Math.random() * Math.PI * 2;
+                        const len = Math.random() * 300 + 100;
+                        zap.style.width = `${len}px`;
+                        zap.style.left = `${cx}px`;
+                        zap.style.top = `${cy}px`;
+                        zap.style.transform = `rotate(${angle}rad)`;
+
+                        container.appendChild(zap);
+                        setTimeout(() => zap.remove(), 250);
+                    }
+                }
+            }
+
+            function getVocabulary() {
+                let arr = stateThemeArr();
+                if (arr.length === 0) arr = ['占位符', '请添加词条'];
+                if (State.isPremium) {
+                    arr = arr.concat(WordsMap.premiumAddons);
+                }
+                return arr;
+            }
+
+            function stateThemeArr() {
+                if (State.theme === 'custom') return State.customDict;
+                return WordsMap[State.theme];
+            }
+
+            function createBlock() {
+                const vocab = getVocabulary();
+                const word = vocab[Math.floor(Math.random() * vocab.length)];
+                const tColor = ThemeColors[Math.floor(Math.random() * ThemeColors.length)];
+
+                const el = document.createElement('div');
+                el.className = 'block';
+                el.innerText = word;
+                el.style.border = `2px solid ${tColor.color}`;
+                el.style.boxShadow = State.isPremium ? `0 0 15px ${tColor.color}, inset 0 0 10px ${tColor.color}` : `0 0 5px ${tColor.color}`;
+                el.style.color = tColor.color;
+                el.style.textShadow = `0 0 5px ${tColor.color}`;
+
+                container.appendChild(el);
+
+                const width = el.offsetWidth;
+                const height = el.offsetHeight;
+                const startX = Math.random() * (container.clientWidth - width);
+                const startY = -height;
+
+                el.style.setProperty('--tx', `${startX}px`);
+                el.style.setProperty('--ty', `${startY}px`);
+
+                let speed = baseSpeed;
+                if (State.mode === 'endless') speed += (State.score * 0.005);
+                else speed += ((60 - State.timeLeft) * 0.01);
+
+                const obj = { el, x: startX, y: startY, w: width, h: height, speed, color: tColor.color };
+
+                el.addEventListener('pointerdown', (e) => {
+                    if (!State.isPlaying) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    spawnVisualEffect(obj.x + obj.w / 2, obj.y + obj.h / 2, obj.color, obj.w, obj.h);
+
+                    obj.el.remove();
+                    blocks = blocks.filter(b => b !== obj);
+
+                    State.score++;
+                    scoreEl.innerText = State.score;
+                    scoreEl.style.transform = 'scale(1.5)';
+                    setTimeout(() => scoreEl.style.transform = 'scale(1)', 100);
+                });
+
+                blocks.push(obj);
+            }
+
+            function endGame(reason) {
+                State.isPlaying = false;
+                cancelAnimationFrame(animFrameId);
+                gameHud.classList.add('hidden');
+
+                // Save and format locally 
+                window.insertLocalLeaderboard(State.mode, State.score, new Date().toLocaleDateString());
+                const best = window.getTopScore(State.mode);
+
+                // Try sync to cloud
+                window.reportScoreToCloud(State.mode, State.score);
+
+                document.getElementById('go-mode-label').innerText = State.mode === 'endless' ? '(经典无尽)' : '(60秒竞速)';
+
+                if (reason === 'time_up') {
+                    document.getElementById('modal-title').innerText = "时间到！";
+                    document.getElementById('modal-desc').innerHTML = "疯狂发泄结束！感觉好点了吗？";
+                    document.getElementById('modal-desc').className = 'text-neonBlue text-sm text-center mb-0';
+                } else {
+                    document.getElementById('modal-title').innerText = "游戏结束";
+                    document.getElementById('modal-desc').innerHTML = "糟糕，被负能量击穿了底线！";
+                    document.getElementById('modal-desc').className = 'text-neonPink text-sm text-center mb-0';
+                }
+
+                document.getElementById('final-score').innerText = State.score;
+                document.getElementById('final-highscore').innerText = best;
+
+                if (!State.isPremium) document.getElementById('ad-interstitial').classList.remove('premium-hide-ad');
+
+                showScreen('gameover');
+            }
+
+            function gameLoop(timestamp) {
+                if (!State.isPlaying) return;
+                const dt = timestamp - lastTime;
+                lastTime = timestamp;
+
+                if (State.mode === 'time') {
+                    State.timeLeft -= dt / 1000;
+                    if (State.timeLeft <= 0) {
+                        timeLeftEl.innerText = "0.0";
+                        endGame('time_up');
+                        return;
+                    }
+                    timeLeftEl.innerText = State.timeLeft.toFixed(1);
+                }
+
+                timeSinceLastSpawn += dt;
+                let currentInterval = spawnInterval;
+                if (State.mode === 'endless') currentInterval = Math.max(300, spawnInterval - State.score * 15);
+                else currentInterval = Math.max(250, spawnInterval - (60 - State.timeLeft) * 20);
+
+                if (timeSinceLastSpawn >= currentInterval) {
+                    createBlock();
+                    timeSinceLastSpawn = 0;
+                }
+
+                const maxY = container.clientHeight;
+                let failure = false;
+                for (let i = 0; i < blocks.length; i++) {
+                    const b = blocks[i];
+                    b.y += b.speed * dt;
+                    b.el.style.setProperty('--ty', `${b.y}px`);
+
+                    if (b.y > maxY) {
+                        if (State.mode === 'endless') {
+                            failure = true;
+                            break;
+                        } else {
+                            b.el.remove();
+                            blocks[i] = null;
+                        }
+                    }
+                }
+                if (State.mode === 'time') blocks = blocks.filter(b => b !== null);
+
+                if (failure) {
+                    endGame('bottom_hit');
+                } else {
+                    animFrameId = requestAnimationFrame(gameLoop);
+                }
+            }
+
+            function startGame() {
+                if (!audioCtx) playSmashEffect('none');
+
+                blocks.forEach(b => b && b.el.remove());
+                blocks = [];
+                State.score = 0;
+                scoreEl.innerText = 0;
+                State.timeLeft = 60.0;
+
+                showScreen(null);
+                gameHud.classList.remove('hidden');
+                if (State.mode === 'time') {
+                    timeContainer.classList.remove('hidden');
+                    timeContainer.classList.add('flex');
+                } else {
+                    timeContainer.classList.add('hidden');
+                    timeContainer.classList.remove('flex');
+                }
+
+                const tmDic = { basic: '普罗大众', student: '学生', worker: '打工人', grad: '研究生', housewife: '妈妈', custom: '自定义' };
+                hudModeEl.innerText = (State.mode === 'endless' ? '无尽|' : '时间|') + tmDic[State.theme];
+
+                State.isPlaying = true;
+                lastTime = performance.now();
+                timeSinceLastSpawn = 0;
+
+                createBlock();
+                animFrameId = requestAnimationFrame(gameLoop);
+            }
+
+            // Expose globally to be called from the module above
+            window.updatePremiumUI = function () {
+                if (State.isPremium) {
+                    document.getElementById('ad-top').classList.add('premium-hide-ad');
+                    document.getElementById('ad-bottom').classList.add('premium-hide-ad');
+                    document.getElementById('ad-interstitial').classList.add('premium-hide-ad');
+                    document.getElementById('btn-open-store').innerHTML = '✅ 高级权限云同步生效中';
+                    document.getElementById('btn-buy').innerText = '权限已激活 (已买断)';
+                    document.getElementById('btn-buy').classList.add('opacity-50', 'pointer-events-none');
+                } else {
+                    document.getElementById('ad-top').classList.remove('premium-hide-ad');
+                    document.getElementById('ad-bottom').classList.remove('premium-hide-ad');
+                    document.getElementById('ad-interstitial').classList.remove('premium-hide-ad');
+                    document.getElementById('btn-open-store').innerHTML = '💎 升级特效权限';
+                    document.getElementById('btn-buy').innerText = '模拟支付 ￥9.9';
+                    document.getElementById('btn-buy').classList.remove('opacity-50', 'pointer-events-none');
+                }
+            };
+            window.updatePremiumUI();
+
+            function reloadLeaderboard(mode) {
+                const listUl = document.getElementById('lb-list');
+                listUl.innerHTML = '';
+                const data = State.leaderboards[mode] || [];
+                if (data.length === 0) {
+                    listUl.innerHTML = '<li class="text-gray-500 text-sm py-4 text-center">暂无记录，快去创造历史！</li>';
+                } else {
+                    data.forEach((item, index) => {
+                        const colors = ['text-yellow-400', 'text-gray-300', 'text-amber-600', 'text-gray-500', 'text-gray-500'];
+                        listUl.innerHTML += `
+                        <li class="flex justify-between items-center bg-gray-800/50 p-2 rounded">
+                            <span class="font-bold text-lg ${colors[index]} w-6">${index + 1}</span>
+                            <span class="text-xl font-black text-white flex-1 text-center">${item.score} <span class="text-[10px] text-gray-400">词</span></span>
+                            <span class="text-[10px] text-gray-500">${item.date}</span>
+                        </li>`;
+                    });
+                }
+            }
+
+            // Bindings
+            document.querySelectorAll('#mode-selector button').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('#mode-selector button').forEach(b => b.classList.remove('active'));
+                    e.currentTarget.classList.add('active');
+                    State.mode = e.currentTarget.dataset.mode;
+                });
+            });
+            document.querySelectorAll('#theme-selector button').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('#theme-selector button').forEach(b => b.classList.remove('active'));
+                    e.currentTarget.classList.add('active');
+                    State.theme = e.currentTarget.dataset.theme;
+                });
+            });
+
+            document.getElementById('btn-start').addEventListener('click', () => {
+                if (State.theme === 'custom' && State.customDict.length === 0) {
+                    alert('自定义词库为空，请先添加词条！');
+                    return;
+                }
+                startGame();
+            });
+            document.getElementById('btn-restart').addEventListener('click', startGame);
+            document.getElementById('btn-back-menu').addEventListener('click', () => showScreen('main'));
+
+            document.getElementById('btn-open-custom').addEventListener('click', () => showScreen('custom'));
+            document.querySelector('.close-custom').addEventListener('click', () => showScreen('main'));
+            document.getElementById('btn-save-custom').addEventListener('click', () => {
+                const val = document.getElementById('custom-text').value;
+                const words = val.split('\n').map(w => w.trim()).filter(w => w.length > 0);
+                if (words.length > 50) { alert('最多支持50行词条！'); return; }
+
+                window.updateCustomDictToCloud(words); // sync to cloud & local
+                alert('已保存并同步云端！');
+                showScreen('main');
+            });
+
+            document.getElementById('btn-open-store').addEventListener('click', () => showScreen('store'));
+            document.querySelector('.close-store').addEventListener('click', () => showScreen('main'));
+            document.getElementById('btn-buy').addEventListener('click', () => {
+                window.purchasePremiumCloud();
+                window.updatePremiumUI();
+                alert('解锁成功！数据已同步云端。');
+                showScreen('main');
+            });
+
+            document.getElementById('btn-open-leaderboard').addEventListener('click', () => {
+                document.querySelectorAll('.lb-tab').forEach(b => {
+                    b.classList.remove('bg-gray-700', 'text-white');
+                    b.classList.add('text-gray-400');
+                });
+                const firstT = document.querySelector('.lb-tab[data-target="endless"]');
+                firstT.classList.add('bg-gray-700', 'text-white');
+                reloadLeaderboard('endless');
+                showScreen('leaderboard');
+            });
+            document.querySelector('.close-lb').addEventListener('click', () => showScreen('main'));
+            document.querySelectorAll('.lb-tab').forEach(t => t.addEventListener('click', (e) => {
+                document.querySelectorAll('.lb-tab').forEach(b => {
+                    b.classList.remove('bg-gray-700', 'text-white');
+                    b.classList.add('text-gray-400');
+                });
+                e.currentTarget.classList.add('bg-gray-700', 'text-white');
+                reloadLeaderboard(e.currentTarget.dataset.target);
+            }));
+
+        }, 100);
+    </script>
+</body>
+
+</html>
